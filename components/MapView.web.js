@@ -1,8 +1,38 @@
-import MapViewWeb, { Marker } from '@teovilla/react-native-web-maps';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
+
+const containerStyle = {
+  width: '100%',
+  height: '100%',
+};
+
+const libraries = ['places'];
 
 const MapViewComponent = ({ markers = [], onMarkerPress, userLocation }) => {
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, // Ensure your API key is set in environment variables
+    libraries,
+  });
+
+  const [map, setMap] = useState(null);
+
+  const onLoad = useCallback(function callback(map) {
+    setMap(map);
+  }, []);
+
+  const onUnmount = useCallback(function callback(map) {
+    setMap(null);
+  }, []);
+
+  if (loadError) {
+    return <Text>Error loading maps</Text>;
+  }
+
+  if (!isLoaded) {
+    return <Text>Loading Maps...</Text>;
+  }
+
   let text = 'Waiting...';
   if (!userLocation) {
     text = 'User location not available.';
@@ -11,27 +41,28 @@ const MapViewComponent = ({ markers = [], onMarkerPress, userLocation }) => {
   return (
     <View style={styles.container}>
       {userLocation ? (
-        <MapViewWeb
-          style={styles.map}
-          initialRegion={{
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
+        <GoogleMap
+          mapContainerStyle={containerStyle}
+          center={{
+            lat: userLocation.latitude,
+            lng: userLocation.longitude,
           }}
-          showsUserLocation={true}
+          zoom={12}
+          onLoad={onLoad}
+          onUnmount={onUnmount}
         >
           {markers.map((marker) => (
             <Marker
               key={marker.id}
-              coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+              position={{
+                lat: marker.latitude,
+                lng: marker.longitude,
+              }}
               title={marker.title}
-              description={marker.description}
-              pinColor={marker.color}
               onClick={() => onMarkerPress && onMarkerPress(marker)}
             />
           ))}
-        </MapViewWeb>
+        </GoogleMap>
       ) : (
         <Text>{text}</Text>
       )}

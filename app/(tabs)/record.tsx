@@ -1,6 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
+import { Audio } from 'expo-audio';
 import * as Location from 'expo-location';
 import React, { useEffect, useState, useRef } from 'react';
 import { Alert, Button, StyleSheet, Text, View } from 'react-native';
@@ -17,17 +17,17 @@ export default function RecordEchoScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
 
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setErrorMsg('Permission to access location was denied');
         return;
       }
-
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      setLocation(currentLocation);
     })();
   }, []);
 
@@ -40,7 +40,6 @@ export default function RecordEchoScreen() {
   async function startRecording() {
     try {
       if (permissionResponse && permissionResponse.status !== 'granted') {
-        console.log('Requesting permission..');
         await requestPermission();
       }
       await Audio.setAudioModeAsync({
@@ -48,46 +47,49 @@ export default function RecordEchoScreen() {
         playsInSilentModeIOS: true,
       });
 
-      console.log('Starting recording..');
       const { recording } = await Audio.Recording.createAsync(
-         Audio.RecordingOptionsPresets.HIGH_QUALITY
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       setRecording(recording);
       setIsRecording(true);
-      setRecordingDuration(0);
+
       intervalRef.current = setInterval(() => {
-        setRecordingDuration((prevDuration) => prevDuration + 1);
+        setRecordingDuration((prev) => prev + 1);
       }, 1000);
-      console.log('Recording started');
     } catch (err) {
       console.error('Failed to start recording', err);
     }
   }
 
   async function stopRecording() {
-    console.log('Stopping recording..');
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
-      intervalRef.current = null;
     }
     if (recording) {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      console.log('Recording stopped and stored at', uri);
       setRecordingUri(uri);
       setIsRecording(false);
       setRecording(null);
     }
   }
 
-  async function saveEcho() {
-    if (!recordingUri) {
-      Alert.alert('No recording', 'Please record an echo first.');
-      return;
+  async function playSound() {
+    if (recordingUri) {
+      const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
+      setSound(sound);
+      await sound.playAsync();
     }
+  }
 
-    if (!location) {
-      Alert.alert('Location not available', 'Cannot save echo without location data.');
+  function handleRecordAgain() {
+    setRecordingUri(null);
+    setRecordingDuration(0);
+  }
+
+  async function saveEcho() {
+    if (!recordingUri || !location) {
+      Alert.alert('Error', 'No recording or location data available.');
       return;
     }
 
@@ -96,19 +98,18 @@ export default function RecordEchoScreen() {
     try {
       const anonymousUserId = await AsyncStorage.getItem('anonymousUserId');
       if (!anonymousUserId) {
-        Alert.alert('User ID not found', 'Anonymous user ID not found. Please restart the app.');
+        Alert.alert('Error', 'Anonymous user ID not found.');
         setIsUploading(false);
         return;
       }
 
+      const response = await fetch(recordingUri);
+      const blob = await response.blob();
       const fileExtension = recordingUri.split('.').pop();
       const fileName = `${uuidv4()}.${fileExtension}`;
       const filePath = `${anonymousUserId}/${fileName}`;
 
-      const response = await fetch(recordingUri);
-      const blob = await response.blob();
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('echoes')
         .upload(filePath, blob, {
           contentType: `audio/${fileExtension}`,
@@ -116,58 +117,55 @@ export default function RecordEchoScreen() {
         });
 
       if (uploadError) {
-        console.error('Error uploading audio:', uploadError);
-        Alert.alert('Upload Failed', 'Failed to upload audio. Please try again.');
-        setIsUploading(false);
-        return;
+        throw uploadError;
       }
 
-      const publicUrl = supabase.storage
-        .from('echoes')
-        .getPublicUrl(filePath).data.publicUrl;
+      const publicUrl = supabase.storage.from('echoes').getPublicUrl(filePath).data.publicUrl;
 
-      const { data, error: insertError } = await supabase
-        .from('echoes')
-        .insert([
-          {
-            anonymous_user_id: anonymousUserId,
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            audio_url: publicUrl,
-            created_at: new Date().toISOString(),
-          },
-        ]);
+      const { error: insertError } = await supabase.from('echoes').insert([
+        {
+          anonymous_user_id: anonymousUserId,
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          audio_url: publicUrl,
+        },
+      ]);
 
       if (insertError) {
-        console.error('Error inserting echo metadata:', insertError);
-        Alert.alert('Save Failed', 'Failed to save echo metadata. Please try again.');
-      } else {
-        Alert.alert('Echo Saved!', 'Your echo has been successfully saved.');
-        console.log('Echo saved successfully:', data);
-        setRecordingUri(null);
-        setRecordingDuration(0);
+        throw insertError;
       }
+
+      Alert.alert('Success', 'Your echo has been saved!');
+      handleRecordAgain(); // Reset the screen
     } catch (error) {
       console.error('Failed to save echo', error);
-      Alert.alert('Error', 'An unexpected error occurred while saving the echo.');
+      Alert.alert('Error', 'An unexpected error occurred.');
+    } finally {
+      setIsUploading(false);
     }
-    setIsUploading(false);
   }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Record Echo</Text>
-      {isRecording && <Text style={styles.timerText}>{formatDuration(recordingDuration)}</Text>}
+      <Text style={styles.timerText}>{formatDuration(recordingDuration)}</Text>
+
       <View style={styles.buttonContainer}>
-        <Button
-          title={isRecording ? 'Stop' : 'Record'}
-          onPress={isRecording ? stopRecording : startRecording}
-          disabled={isUploading}
-        />
+        {!isRecording && !recordingUri ? (
+          <Button title="Record" onPress={startRecording} />
+        ) : isRecording ? (
+          <Button title="Stop" onPress={stopRecording} />
+        ) : null}
+
         {recordingUri && (
-          <Button title="Save" onPress={saveEcho} disabled={isUploading} />
+          <View style={styles.buttonRow}>
+            <Button title="Replay" onPress={playSound} disabled={isUploading} />
+            <Button title="Submit" onPress={saveEcho} disabled={isUploading} />
+            <Button title="Record Again" onPress={handleRecordAgain} disabled={isUploading} />
+          </View>
         )}
       </View>
+
       {isUploading && <Text>Uploading...</Text>}
       {errorMsg && <Text>{errorMsg}</Text>}
     </View>
@@ -185,15 +183,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '60%',
-    marginTop: 20,
-  },
   timerText: {
-    fontSize: 30,
+    fontSize: 40,
     fontWeight: 'bold',
     marginVertical: 20,
+  },
+  buttonContainer: {
+    marginTop: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '80%',
   },
 });
