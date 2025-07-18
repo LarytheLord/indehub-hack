@@ -4,7 +4,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker } from 'expo-maps';
 
 const MapViewComponent = ({ markers = [], onMarkerPress, userLocation }) => {
   const [region, setRegion] = useState({
@@ -34,7 +34,6 @@ const MapViewComponent = ({ markers = [], onMarkerPress, userLocation }) => {
       <MapView
         ref={mapViewRef}
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
         initialRegion={region}
         showsUserLocation={true}
         onRegionChangeComplete={setRegion}

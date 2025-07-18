@@ -1,0 +1,6 @@
+ ERROR  Error fetching echoes:
+{"code": "", "details": "TypeError: Network request failed
+
+Call Stack
+  anonymous (http:\192.168.43.148:8081\node_modules\expo-router\entry.bundle)
+ ERROR  Failed to start recording [TypeError: Cannot read property 'setAudioModeAsync' of undefined]

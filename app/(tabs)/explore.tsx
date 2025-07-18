@@ -1,6 +1,6 @@
 import { Audio } from 'expo-audio';
 import * as Location from 'expo-location';
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import MapViewComponent from '../../components/MapView'; // Adjust the path as necessary
 import { supabase } from '../../utils/supabase';
@@ -35,10 +35,10 @@ const deg2rad = (deg: number) => {
   return deg * (Math.PI / 180);
 };
 
-export default function HomeScreen() {
+export default function ExploreScreen() {
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
   const [echoes, setEchoes] = useState<Echo[]>([]);
-  const [sound, setSound] = useState<Audio.Sound>();
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [nearbyEchoMessage, setNearbyEchoMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -173,8 +173,7 @@ export default function HomeScreen() {
         <>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search echoes..."
-            value={searchQuery}
+            placeholder="Search echoes..."n            value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={fetchEchoes} // Trigger search on submit
           />
