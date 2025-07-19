@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-audio';
 import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Button, StyleSheet, Text, View, ActivityIndicator, Platform } from 'react-native';
+import { ActivityIndicator, Alert, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../utils/supabase';
 
@@ -133,6 +133,7 @@ export default function RecordEchoScreen() {
         throw new Error('Failed to get public URL.');
       }
       const publicUrl = publicUrlData.publicUrl;
+      console.log('Public URL generated:', publicUrl);
 
       const { error: insertError } = await supabase.from('echoes').insert([
         {

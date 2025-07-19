@@ -1,17 +1,20 @@
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-audio';
+import { Audio } from 'expo-av';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, FlatList, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../utils/supabase';
 
+
 interface Echo {
   id: string;
-  anonymous_user_id: string;
   latitude: number;
   longitude: number;
-  audio_url: string;
-  created_at: string;
+  audioUrl: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  color?: string; // Optional color for map markers
+  location_name: string;
 }
 
 export default function MyEchoesScreen() {
@@ -20,22 +23,24 @@ export default function MyEchoesScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    fetchEchoes();
+    // fetchEchoes(); // Commented out to prioritize displaying the specific MP3
+    setEchoes([
+      {
+        id: 'static-indehubexp',
+        latitude: 21.225693494663318,
+        longitude: 72.81111087992036,
+        location_name: "Vasundhara Infotech, Opp Nayara Petrol Pump, Singanpore, Road, Katargam, Surat, Gujarat 395004",
+        audio_url: require('../../constants/indehubexp.mp3'),
+        created_at: new Date().toISOString(),
+      },
+    ]);
   }, []);
 
   const fetchEchoes = async () => {
     setIsLoading(true);
-    const anonymousUserId = await AsyncStorage.getItem('anonymousUserId');
-    if (!anonymousUserId) {
-      Alert.alert('User ID not found', 'Anonymous user ID not found. Please restart the app.');
-      setIsLoading(false);
-      return;
-    }
-
     const { data, error } = await supabase
       .from('echoes')
       .select('*')
-      .eq('anonymous_user_id', anonymousUserId)
       .order('created_at', { ascending: false });
 
     if (error) {

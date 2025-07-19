@@ -14,7 +14,8 @@ interface Echo {
   timestamp: string;
   title: string;
   description: string;
-  color: string;
+  color?: string; // Optional color for map markers
+  location_name: string;
 }
 
 // Function to calculate distance between two coordinates
